@@ -586,6 +586,9 @@ importers:
       glob:
         specifier: 11.0.0
         version: 11.0.0
+      twitter-api-v2:
+        specifier: ^1.18.2
+        version: 1.18.2
       whatwg-url:
         specifier: 7.1.0
         version: 7.1.0

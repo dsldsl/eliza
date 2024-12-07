@@ -108,23 +108,46 @@ export class TwitterInteractionClient {
         elizaLogger.log("Searching for mentions of:", twitterUsername);
         
         try {
-            // Check for mentions
-            elizaLogger.log("Fetching search tweets with query:", `@${twitterUsername}`);
-            const tweetCandidates = (
+            let tweetCandidates: Tweet[] = [];
+
+            // Get mentions from Twitter API v2 if available
+            if (this.client.apiClient && this.client.profile?.id) {
+                elizaLogger.info("Fetching mentions from Twitter API v2");
+                const apiMentions = await this.client.apiClient.fetchMentions(
+                    this.client.profile.id,
+                    this.client.lastCheckedTweetId?.toString()
+                );
+                elizaLogger.info("Found API mentions, about to push:", JSON.stringify(apiMentions, null, 2));
+                tweetCandidates.push(...apiMentions);
+                elizaLogger.info("Found API mentions:", apiMentions.length);
+            }
+
+            // Also get mentions from search as a backup/supplement
+            elizaLogger.info("Fetching search tweets with query:", `@${twitterUsername}`);
+            const searchMentions = (
                 await this.client.fetchSearchTweets(
                     `@${twitterUsername}`,
                     20,
                     SearchMode.Latest
                 )
             ).tweets;
+            tweetCandidates.push(...searchMentions);
+            elizaLogger.info("Found search mentions:", searchMentions.length);
 
-            elizaLogger.log("Found tweet candidates:", tweetCandidates.length);
+            elizaLogger.info("Total tweet candidates:", tweetCandidates.length);
             
-            // de-duplicate tweetCandidates with a set
-            const uniqueTweetCandidates = [...new Set(tweetCandidates)];
-            elizaLogger.log("After deduplication:", uniqueTweetCandidates.length);
+            // de-duplicate tweetCandidates using tweet IDs
+            const uniqueTweetIds = new Set<string>();
+            const uniqueTweetCandidates = tweetCandidates.filter(tweet => {
+                if (uniqueTweetIds.has(tweet.id)) {
+                    return false;
+                }
+                uniqueTweetIds.add(tweet.id);
+                return true;
+            });
+            elizaLogger.info("After deduplication:", uniqueTweetCandidates.length);
             
-            // Sort tweet candidates by ID in ascending order
+            // Sort tweet candidates by ID in ascending order and filter out self-tweets
             uniqueTweetCandidates
                 .sort((a, b) => a.id.localeCompare(b.id))
                 .filter((tweet) => tweet.userId !== this.client.profile.id);
@@ -197,7 +220,7 @@ export class TwitterInteractionClient {
             // Save the latest checked tweet ID to the file
             await this.client.cacheLatestCheckedTweetId();
 
-            elizaLogger.log("Finished checking Twitter interactions");
+            elizaLogger.info("Finished checking Twitter interactions");
         } catch (error) {
             elizaLogger.error("Error handling Twitter interactions:", error);
         }

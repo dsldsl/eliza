@@ -16,12 +16,13 @@ import {
     Tweet,
 } from "agent-twitter-client";
 import { EventEmitter } from "events";
+import { TwitterApiClient } from './api-client';
 
 export function extractAnswer(text: string): string {
-    const startIndex = text.indexOf("Answer: ") + 8;
-    const endIndex = text.indexOf("<|endoftext|>", 11);
-    return text.slice(startIndex, endIndex);
-}
+        const startIndex = text.indexOf("Answer: ") + 8;
+        const endIndex = text.indexOf("<|endoftext|>", 11);
+        return text.slice(startIndex, endIndex);
+    }
 
 type TwitterProfile = {
     id: string;
@@ -84,15 +85,49 @@ class RequestQueue {
 export class ClientBase extends EventEmitter {
     static _twitterClients: { [accountIdentifier: string]: Scraper } = {};
     twitterClient: Scraper;
+    apiClient?: TwitterApiClient;
     runtime: IAgentRuntime;
     directions: string;
     lastCheckedTweetId: bigint | null = null;
     imageDescriptionService: IImageDescriptionService;
     temperature: number = 0.5;
-
     requestQueue: RequestQueue = new RequestQueue();
-
     profile: TwitterProfile | null;
+    callback: (self: ClientBase) => any = null;
+
+    onReady() {
+        throw new Error(
+            "Not implemented in base class, please call from subclass"
+        );
+    }
+
+    constructor(runtime: IAgentRuntime) {
+        super();
+        this.runtime = runtime;
+        const username = this.runtime.getSetting("TWITTER_USERNAME");
+        if (ClientBase._twitterClients[username]) {
+            this.twitterClient = ClientBase._twitterClients[username];
+        } else {
+            this.twitterClient = new Scraper();
+            ClientBase._twitterClients[username] = this.twitterClient;
+        }
+
+        // Initialize Twitter API v2 client if bearer token is available
+        const bearerToken = this.runtime.getSetting("X_APP_BEARER_TOKEN");
+
+        if (bearerToken) {
+            this.apiClient = new TwitterApiClient(bearerToken);
+            elizaLogger.log("Twitter API v2 client initialized");
+        } else {
+            elizaLogger.warn("Twitter API v2 bearer token not found, falling back to scraper only");
+        }
+
+        this.directions =
+            "- " +
+            this.runtime.character.style.all.join("\n- ") +
+            "- " +
+            this.runtime.character.style.post.join();
+    }
 
     async cacheTweet(tweet: Tweet): Promise<void> {
         if (!tweet) {
@@ -124,32 +159,6 @@ export class ClientBase extends EventEmitter {
 
         await this.cacheTweet(tweet);
         return tweet;
-    }
-
-    callback: (self: ClientBase) => any = null;
-
-    onReady() {
-        throw new Error(
-            "Not implemented in base class, please call from subclass"
-        );
-    }
-
-    constructor(runtime: IAgentRuntime) {
-        super();
-        this.runtime = runtime;
-        const username = this.runtime.getSetting("TWITTER_USERNAME");
-        if (ClientBase._twitterClients[username]) {
-            this.twitterClient = ClientBase._twitterClients[username];
-        } else {
-            this.twitterClient = new Scraper();
-            ClientBase._twitterClients[username] = this.twitterClient;
-        }
-
-        this.directions =
-            "- " +
-            this.runtime.character.style.all.join("\n- ") +
-            "- " +
-            this.runtime.character.style.post.join();
     }
 
     async init() {

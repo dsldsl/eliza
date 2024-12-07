@@ -1,7 +1,7 @@
 node_modules
 /out
 
-#.env
+.env
 .env.production
 concatenated-output.ts
 embedding-cache.json
