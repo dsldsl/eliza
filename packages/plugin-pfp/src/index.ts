@@ -40,7 +40,7 @@ const generatePfpAction: Action = {
             const scriptArgs = [
                 "selenium_service.py", 
                 "--username", username,
-                "--chat_id", "67512999-64a0-8001-baa4-55574b1ead36",
+                // "--chat_id", "67512999-64a0-8001-baa4-55574b1ead36",
             ];
             const scriptCwd = "/Users/dan/poof/DiscordIlluminator/xmasPfpAi/";
 
