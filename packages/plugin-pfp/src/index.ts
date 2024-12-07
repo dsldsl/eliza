@@ -70,7 +70,7 @@ const generatePfpAction: Action = {
 
                 // Send the image with the file path
                 callback({
-                    text: "Yo Ho Ho! 🏴‍☠️🎄✨ #pp5k",
+                    text: "Yo Ho Ho! 🏴‍☠️🎄✨ #pp5k \n\Do leave yer thoughts so I can sharpen me skills fer next time!",
                     attachments: [
                         {
                             id: randomUUID(),
