@@ -70,16 +70,8 @@ const generatePfpAction: Action = {
 
                 // Send the image with the file path
                 callback({
-                    text: "#YoHoHo #PixelMagic 🏴‍☠️🎄✨",
+                    text: "Yo Ho Ho! 🏴‍☠️🎄✨ #pp5k",
                     attachments: [
-                        {
-                            id: randomUUID(),
-                            url: originalImagePath,  // Pass the file path instead of URL
-                            title: "Original Profile Picture",
-                            source: "profilePicture",
-                            description: "",
-                            text: "",
-                        },
                         {
                             id: randomUUID(),
                             url: generatedImagePath,  // Pass the file path instead of URL
@@ -87,6 +79,14 @@ const generatePfpAction: Action = {
                             source: "profilePictureGeneration",
                             description: "A festive holiday-themed profile picture.",
                             text: "Enjoy your new holiday look!",
+                        },
+                        {
+                            id: randomUUID(),
+                            url: originalImagePath,  // Pass the file path instead of URL
+                            title: "Original Profile Picture",
+                            source: "profilePicture",
+                            description: "",
+                            text: "",
                         },
                     ],
                 });
