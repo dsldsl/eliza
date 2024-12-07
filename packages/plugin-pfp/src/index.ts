@@ -53,6 +53,7 @@ const generatePfpAction: Action = {
             });
 
             // Path to the generated image
+            const originalImagePath = path.join("/Users/dan/poof/DiscordIlluminator/xmasPfpAi/pfps", `pfp-${username.toLowerCase()}.jpg`);
             const generatedImagePath = path.join("/Users/dan/poof/DiscordIlluminator/xmasPfpAi/pfps", `pfp-${username.toLowerCase()}-new.png`);
 
             if (stderr) {
@@ -69,8 +70,16 @@ const generatePfpAction: Action = {
 
                 // Send the image with the file path
                 callback({
-                    text: "#YoHoHo #ARRRRR 🏴‍☠️🎄✨",
+                    text: "#YoHoHo #PixelMagic 🏴‍☠️🎄✨",
                     attachments: [
+                        {
+                            id: randomUUID(),
+                            url: originalImagePath,  // Pass the file path instead of URL
+                            title: "Original Profile Picture",
+                            source: "profilePicture",
+                            description: "",
+                            text: "",
+                        },
                         {
                             id: randomUUID(),
                             url: generatedImagePath,  // Pass the file path instead of URL

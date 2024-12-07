@@ -202,9 +202,10 @@ export async function sendTweet(
             try {
                 // Read the file into a buffer
                 const fileBuffer = await fs.promises.readFile(attachment.url);
+                const extension = path.extname(attachment.url).toLowerCase();
                 mediaData.push({
                     data: fileBuffer,
-                    mediaType: 'image/png'  // Default to png if not specified
+                    mediaType: `image/${extension?.slice(1) || 'png'}`  // Default to png if not specified
                 });
                 elizaLogger.info("Added media attachment:", {
                     filePath: attachment.url
