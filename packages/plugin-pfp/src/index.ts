@@ -52,18 +52,15 @@ const generatePfpAction: Action = {
                 cwd: scriptCwd
             });
 
+            // Path to the generated image
+            const generatedImagePath = path.join("/Users/dan/poof/DiscordIlluminator/xmasPfpAi/pfps", `pfp-${username.toLowerCase()}-new.png`);
+
             if (stderr) {
-                console.error("Python script stderr:", stderr);
-                throw new Error("Error running Python script");
+                elizaLogger.error("Python script stderr:", stderr);
             }
 
             elizaLogger.log("Python script stdout:", stdout);
 
-
-
-
-            // Path to the generated image
-            const generatedImagePath = path.join("/Users/dan/poof/DiscordIlluminator/xmasPfpAi/pfps", `pfp-${username.toLowerCase()}-new.png`);
 
             // Check if the file exists
             try {
