@@ -210,10 +210,10 @@ export class TwitterPostClient {
     //     }
     // }
 
-    // constructor(client: ClientBase, runtime: IAgentRuntime) {
-    //     this.client = client;
-    //     this.runtime = runtime;
-    // }
+    constructor(client: ClientBase, runtime: IAgentRuntime) {
+        this.client = client;
+        this.runtime = runtime;
+    }
 
     private async generateNewTweet(overrideContext?: string) {
         elizaLogger.log("Generating new tweet");
