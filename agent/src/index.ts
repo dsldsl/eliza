@@ -5,6 +5,8 @@ import { DirectClientInterface } from "@ai16z/client-direct";
 import { DiscordClientInterface } from "@ai16z/client-discord";
 import { TelegramClientInterface } from "@ai16z/client-telegram";
 import { TwitterClientInterface } from "@ai16z/client-twitter";
+import { pfpUpdatePlugin } from "@ai16z/plugin-pfp";
+
 import {
     AgentRuntime,
     CacheManager,
@@ -358,6 +360,7 @@ export function createAgent(
         evaluators: [],
         character,
         plugins: [
+            pfpUpdatePlugin,
             bootstrapPlugin,
             getSecret(character, "CONFLUX_CORE_PRIVATE_KEY")
                 ? confluxPlugin

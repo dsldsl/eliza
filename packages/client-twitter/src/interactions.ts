@@ -105,8 +105,11 @@ export class TwitterInteractionClient {
         elizaLogger.log("Checking Twitter interactions");
 
         const twitterUsername = this.client.profile.username;
+        elizaLogger.log("Searching for mentions of:", twitterUsername);
+        
         try {
             // Check for mentions
+            elizaLogger.log("Fetching search tweets with query:", `@${twitterUsername}`);
             const tweetCandidates = (
                 await this.client.fetchSearchTweets(
                     `@${twitterUsername}`,
@@ -115,8 +118,12 @@ export class TwitterInteractionClient {
                 )
             ).tweets;
 
+            elizaLogger.log("Found tweet candidates:", tweetCandidates.length);
+            
             // de-duplicate tweetCandidates with a set
             const uniqueTweetCandidates = [...new Set(tweetCandidates)];
+            elizaLogger.log("After deduplication:", uniqueTweetCandidates.length);
+            
             // Sort tweet candidates by ID in ascending order
             uniqueTweetCandidates
                 .sort((a, b) => a.id.localeCompare(b.id))
@@ -249,7 +256,10 @@ export class TwitterInteractionClient {
         });
 
         // check if the tweet exists, save if it doesn't
-        const tweetId = stringToUuid(tweet.id + "-" + this.runtime.agentId);
+        const tweetId = stringToUuid(
+            tweet.id + "-" + this.runtime.agentId
+        );
+
         const tweetExists =
             await this.runtime.messageManager.getMemoryById(tweetId);
 
@@ -328,18 +338,30 @@ export class TwitterInteractionClient {
 
         if (response.text) {
             try {
+                // Define callback before sending initial tweet
                 const callback: HandlerCallback = async (response: Content) => {
+                    // Use the stored tweet ID if it exists and we're sending an image
+                    const replyToId = response.attachments?.length ? 
+                        (state.lastResponseTweetId || tweet.id) : 
+                        tweet.id;
+                        
                     const memories = await sendTweet(
                         this.client,
                         response,
                         message.roomId,
                         this.runtime.getSetting("TWITTER_USERNAME"),
-                        tweet.id
+                        replyToId
                     );
                     return memories;
                 };
 
+                // Send initial response tweet
                 const responseMessages = await callback(response);
+                
+                // Store the tweet ID in state for future replies
+                if (responseMessages.length > 0) {
+                    state.lastResponseTweetId = responseMessages[0].content.url.split('/').pop();
+                }
 
                 state = (await this.runtime.updateRecentMessageState(
                     state
@@ -364,7 +386,8 @@ export class TwitterInteractionClient {
                 await this.runtime.processActions(
                     message,
                     responseMessages,
-                    state
+                    state,
+                    callback
                 );
 
                 const responseInfo = `Context:\n\n${context}\n\nSelected Post: ${tweet.id} - ${tweet.username}: ${tweet.text}\nAgent's Output:\n${response.text}`;

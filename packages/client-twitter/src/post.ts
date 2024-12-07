@@ -30,6 +30,26 @@ const twitterPostTemplate = `
 Write a 1-3 sentence post that is {{adjective}} about {{topic}} (without mentioning {{topic}} directly), from the perspective of {{agentName}}. Do not add commentary or acknowledge this request, just write the post.
 Your response should not contain any questions. Brief, concise statements only. The total character count MUST be less than 280. No emojis. Use \\n\\n (double spaces) between statements.`;
 
+const twitterInfluencerPostTemplate = `
+# Areas of Expertise
+{{knowledge}}
+
+# About {{agentName}} (@{{twitterUserName}}):
+{{bio}}
+{{lore}}
+{{topics}}
+
+{{providers}}
+
+{{characterPostExamples}}
+
+{{postDirections}}
+
+# Task: Generate a post in the voice and style and perspective of {{agentName}} @{{twitterUserName}} to accompany a gift of a holiday theme'd PFP to that influencer.
+Write a 1-3 sentence post that is gifting a holiday xmas themed PFP to @{{influencer_username}}, from the perspective of {{agentName}}. Do not add commentary or acknowledge this request, just write the post.
+Tag their username but do not make that the first thing in the tweet.
+Your response should not contain any questions. Brief, concise statements only. The total character count MUST be less than 280. No emojis. Use \\n\\n (double spaces) between statements.`;
+
 const MAX_TWEET_LENGTH = 280;
 
 /**
@@ -92,6 +112,7 @@ export class TwitterPostClient {
 
             if (Date.now() > lastPostTimestamp + delay) {
                 await this.generateNewTweet();
+                // await this.postNewInfluencerPfp();
             }
 
             setTimeout(() => {
@@ -115,12 +136,86 @@ export class TwitterPostClient {
         generateNewTweetLoop();
     }
 
-    constructor(client: ClientBase, runtime: IAgentRuntime) {
-        this.client = client;
-        this.runtime = runtime;
+    async hasProcessedUser(username: string): Promise<boolean> {
+        const memoryId = stringToUuid(username + "-" + this.runtime.agentId);
+        const memory = await this.runtime.messageManager.getMemoryById(memoryId);
+        return memory !== null;
+        
     }
 
-    private async generateNewTweet() {
+    // async generatePirateMessage(username: string): Promise<string> {
+    //     const state = await this.runtime.composeState(
+    //         {
+    //             userId: this.runtime.agentId,
+    //             agentId: this.runtime.agentId,
+    //             content: {
+    //                 text: `Generate a pirate-themed message for @${username}`,
+    //                 action: "",
+    //             },
+    //         },
+    //         {
+    //             twitterUserName: this.client.profile.username,
+    //         }
+    //     );
+    
+    //     const context = composeContext({
+    //         state,
+    //         template: "Ahoy, matey! Here's a special message for ye: {{text}}",
+    //     });
+    
+    //     const pirateMessage = await generateText({
+    //         runtime: this.runtime,
+    //         context,
+    //         modelClass: ModelClass.SMALL,
+    //     });
+    
+    //     return pirateMessage.trim();
+    // }
+
+    // async postNewInfluencerPfp() {
+    //     // Trigger the generatePfpAction using the bot's runtime
+    //     const runtime: IAgentRuntime = this.runtime; // Ensure you have access to the runtime
+    //     const message: Memory = { userId: username }; // Create a Memory object with the username
+
+    //     // Call the handler directly or through an action dispatcher
+    //     generatePfpAction.handler(
+    //         runtime,
+    //         message,
+    //         {} as State, // Pass the necessary state if required
+    //         {},
+    //         async (error, result) => {
+    //             if (error) {
+    //                 console.error(`Error generating PFP for @${username}:`, error);
+    //                 return;
+    //             }
+
+    //             // Handle the result, which should include the generated image
+    //             const imageUrl = result?.imageUrl; // Adjust based on actual result structure
+    //             await this.postPfpWithMessage(username, imageUrl);
+    //         }
+    //     );
+    // }
+
+    // async postPfpWithMessage(username: string, image: string) {
+    //     const message = `Check out this new profile picture for @${username}! 🎨 #GeneratedPFP`;
+    //     try {
+    //         // Use your existing Twitter client logic to post the image with the message
+    //         await this.client.postTweet({
+    //             status: message,
+    //             media: [image], // Assuming your client supports posting media
+    //         });
+    //         console.log(`Successfully posted PFP for @${username}`);
+    //     } catch (error) {
+    //         console.error(`Error posting PFP for @${username}:`, error);
+    //     }
+    // }
+
+    // constructor(client: ClientBase, runtime: IAgentRuntime) {
+    //     this.client = client;
+    //     this.runtime = runtime;
+    // }
+
+    private async generateNewTweet(overrideContext?: string) {
         elizaLogger.log("Generating new tweet");
 
         try {

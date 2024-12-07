@@ -4,6 +4,9 @@ import { Content, Memory, UUID } from "@ai16z/eliza";
 import { stringToUuid } from "@ai16z/eliza";
 import { ClientBase } from "./base";
 import { elizaLogger } from "@ai16z/eliza";
+import * as fs from 'fs';
+import * as path from 'path';
+import { randomUUID } from "node:crypto";
 
 const MAX_TWEET_LENGTH = 280; // Updated to Twitter's current character limit
 
@@ -170,48 +173,120 @@ export async function sendTweet(
     twitterUsername: string,
     inReplyTo: string
 ): Promise<Memory[]> {
+
+    elizaLogger.info("sendTweet() with params:", {
+        content : JSON.stringify(content, null, 2),
+        roomId,
+        twitterUsername,
+        inReplyTo,
+    });
+
     const tweetChunks = splitTweetContent(content.text);
     const sentTweets: Tweet[] = [];
     let previousTweetId = inReplyTo;
 
-    for (const chunk of tweetChunks) {
-        const result = await client.requestQueue.add(
-            async () =>
-                await client.twitterClient.sendTweet(
-                    chunk.trim(),
-                    previousTweetId
-                )
-        );
-        const body = await result.json();
-
-        // if we have a response
-        if (body?.data?.create_tweet?.tweet_results?.result) {
-            // Parse the response
-            const tweetResult = body.data.create_tweet.tweet_results.result;
-            const finalTweet: Tweet = {
-                id: tweetResult.rest_id,
-                text: tweetResult.legacy.full_text,
-                conversationId: tweetResult.legacy.conversation_id_str,
-                timestamp:
-                    new Date(tweetResult.legacy.created_at).getTime() / 1000,
-                userId: tweetResult.legacy.user_id_str,
-                inReplyToStatusId: tweetResult.legacy.in_reply_to_status_id_str,
-                permanentUrl: `https://twitter.com/${twitterUsername}/status/${tweetResult.rest_id}`,
-                hashtags: [],
-                mentions: [],
-                photos: [],
-                thread: [],
-                urls: [],
-                videos: [],
-            };
-            sentTweets.push(finalTweet);
-            previousTweetId = finalTweet.id;
-        } else {
-            console.error("Error sending chunk", chunk, "repsonse:", body);
+    // Handle media attachments if present
+    let mediaData: { data: Buffer; mediaType: string }[] = [];
+    if (content.attachments && content.attachments.length > 0) {
+        elizaLogger.info("Processing media attachments:", {
+            count: content.attachments.length
+        });
+        
+        // Process attachments
+        for (const attachment of content.attachments) {
+            if (!attachment.url) {
+                elizaLogger.warn("Skipping attachment without URL");
+                continue;
+            }
+            
+            try {
+                // Read the file into a buffer
+                const fileBuffer = await fs.promises.readFile(attachment.url);
+                mediaData.push({
+                    data: fileBuffer,
+                    mediaType: 'image/png'  // Default to png if not specified
+                });
+                elizaLogger.info("Added media attachment:", {
+                    filePath: attachment.url
+                });
+            } catch (error) {
+                elizaLogger.error("Error processing media attachment:", {
+                    filePath: attachment.url,
+                    error: error.message
+                });
+            }
         }
 
-        // Wait a bit between tweets to avoid rate limiting issues
-        await wait(1000, 2000);
+        if (mediaData.length === 0 && content.attachments.length > 0) {
+            elizaLogger.warn("No valid media attachments found to upload");
+        }
+    }
+
+    for (const chunk of tweetChunks) {
+        try {
+            const result = await client.requestQueue.add(async () => {
+                try {
+                    elizaLogger.info("Sending tweet with media:", {
+                        mediaCount: mediaData.length,
+                        previousTweetId: previousTweetId,
+                        chunk: chunk
+                    });
+                    const response = await client.twitterClient.sendTweet(chunk.trim(), previousTweetId, mediaData);
+                    elizaLogger.info("Got response from Twitter API:", { response });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        elizaLogger.error("Error sending tweet:", { error: errorText });
+                        throw new Error(`Failed to send tweet: ${errorText}`);
+                    }
+
+                    const data = await response.json();
+                    elizaLogger.info("Parsed response data:", { data });
+                    return data;
+                } catch (error) {
+                    elizaLogger.error("Failed to send tweet with media:", {
+                        error: error.message,
+                        mediaCount: mediaData.length
+                    });
+                    throw error;
+                }
+            });
+
+            elizaLogger.info("response result:", JSON.stringify(result, null, 2));
+
+            // Parse the response
+            if (result?.data?.create_tweet?.tweet_results?.result?.rest_id) {
+                const tweetId = result.data.create_tweet.tweet_results.result.rest_id;
+                const tweet = await client.twitterClient.getTweet(tweetId);
+                const finalTweet: Tweet = {
+                    id: tweet.id,
+                    text: tweet.text,
+                    conversationId: tweet.conversationId,
+                    timestamp: tweet.timestamp,
+                    userId: tweet.userId,
+                    inReplyToStatusId: tweet.inReplyToStatusId,
+                    permanentUrl: `https://twitter.com/${twitterUsername}/status/${tweet.id}`,
+                    hashtags: [],
+                    mentions: [],
+                    photos: [],
+                    thread: [],
+                    urls: [],
+                    videos: [],
+                };
+                sentTweets.push(finalTweet);
+                previousTweetId = finalTweet.id;
+            } else {
+                console.error("Error sending chunk", chunk, "response:", result);
+            }
+
+            // Wait a bit between tweets to avoid rate limiting issues
+            await wait(1000, 2000);
+        } catch (error) {
+            elizaLogger.error("Error sending tweet chunk:", {
+                chunk: chunk,
+                error: error.message
+            });
+        }
     }
 
     const memories: Memory[] = sentTweets.map((tweet) => ({
@@ -323,4 +398,49 @@ function splitParagraph(paragraph: string, maxLength: number): string[] {
     }
 
     return chunks;
+}
+
+export function filePathToDataUrl(filePath: string): string {
+    const fileData = fs.readFileSync(filePath);
+    const base64Data = fileData.toString('base64');
+    const extension = path.extname(filePath).toLowerCase();
+    
+    // Map common file extensions to MIME types
+    const mimeTypes: { [key: string]: string } = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif'
+    };
+    
+    const mimeType = mimeTypes[extension] || 'application/octet-stream';
+    return `data:${mimeType};base64,${base64Data}`;
+}
+
+export async function testSendTweetWithMedia(
+    client: ClientBase,
+    text: string,
+    mediaPath: string
+): Promise<Memory[]> {
+    const isUrl = mediaPath.startsWith('http://') || mediaPath.startsWith('https://');
+    const mediaUrl = isUrl ? mediaPath : filePathToDataUrl(mediaPath);
+    
+    const content: Content = {
+        text,
+        attachments: [{
+            id: randomUUID(),
+            url: mediaUrl,
+            title: "Holiday Profile Picture",
+            source: "profilePictureGeneration",
+            description: "A festive holiday-themed profile picture.",
+            text: "Enjoy your new holiday look!",
+    }]
+    };
+
+
+
+    // Generate a test room ID
+    const roomId = stringToUuid('test-room');
+    
+    return sendTweet(client, content, roomId, client.profile.username || '', '');
 }
